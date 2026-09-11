@@ -2,7 +2,7 @@
 
 头文件：`elib_fl_clip.h`（通过 `elib_fl.h` 自动引入）
 
-限幅滤波器，零动态分配，支持 float 和 Q32 两种版本。
+限幅滤波器，零动态分配，纯 C99，提供 float / i32 / u32 三套显式接口。
 
 判定规则：`|x[n] - y[n-1]| ≤ threshold → y[n] = x[n]`，否则 `y[n] = y[n-1]`
 
@@ -14,34 +14,49 @@
 #include "elib_fl.h"
 
 elib_fl_clip_ctx_f_t ctx;
-elib_fl_clip_init(&ctx, 5.0f);         /* threshold = 5.0 */
-elib_fl_clip_set_f(&ctx, 100.0f);      /* 设置初始值 */
+elib_fl_clip_init_f(&ctx, 5.0f);      /* threshold = 5.0 */
+elib_fl_clip_set_f(&ctx, 100.0f);     /* 设置初始值 */
 
-float out = elib_fl_clip_update(&ctx, raw);
-elib_fl_clip_reset(&ctx);
+float out = elib_fl_clip_update_f(&ctx, raw);
+elib_fl_clip_reset_f(&ctx);
 ```
 
-## Q32 版本
+## i32 版本
 
 ```c
-elib_fl_clip_ctx_q32_t ctx;
-elib_fl_clip_init(&ctx, 500, 8);       /* threshold = 500 in Q8 */
-elib_fl_clip_set_q32(&ctx, 10000);     /* 设置初始值 */
+elib_fl_clip_ctx_i32_t ctx;
+elib_fl_clip_init_i32(&ctx, 500);     /* threshold = 500 */
+elib_fl_clip_set_i32(&ctx, 10000);    /* 设置初始值 */
 
-int32_t out = elib_fl_clip_update(&ctx, raw);
-elib_fl_clip_reset(&ctx);
+int32_t out = elib_fl_clip_update_i32(&ctx, raw);
+elib_fl_clip_reset_i32(&ctx);
+```
+
+## u32 版本
+
+```c
+elib_fl_clip_ctx_u32_t ctx;
+elib_fl_clip_init_u32(&ctx, 500);
+elib_fl_clip_set_u32(&ctx, 10000);
+
+uint32_t out = elib_fl_clip_update_u32(&ctx, raw);
+elib_fl_clip_reset_u32(&ctx);
 ```
 
 ---
 
-## Generic API
+## API
 
-| 宏 | 分发依据 |
-|----|---------|
-| `elib_fl_clip_init(ctx, ...)` | ctx 类型 |
-| `elib_fl_clip_set(ctx, ...)` | ctx 类型 |
-| `elib_fl_clip_update(ctx, in)` | ctx 类型 |
-| `elib_fl_clip_reset(ctx)` | ctx 类型 |
+| 版本 | init | set | update | reset |
+|------|------|-----|--------|-------|
+| float | `elib_fl_clip_init_f` | `elib_fl_clip_set_f` | `elib_fl_clip_update_f` | `elib_fl_clip_reset_f` |
+| i32 | `elib_fl_clip_init_i32` | `elib_fl_clip_set_i32` | `elib_fl_clip_update_i32` | `elib_fl_clip_reset_i32` |
+| u32 | `elib_fl_clip_init_u32` | `elib_fl_clip_set_u32` | `elib_fl_clip_update_u32` | `elib_fl_clip_reset_u32` |
+
+- `init(ctx, threshold)`：设置限幅阈值（必须 > 0）。
+- `set(ctx, value)`：设置初始输出值，返回 `ELIB_FL_OK` 或 `ELIB_FL_ERR_NOT_INITIALIZED`。
+- `update(ctx, in)`：与当前输出比较，差值在阈值内则接受新值，否则保持。
+- `reset(ctx)`：清零输出。
 
 ---
 
@@ -55,4 +70,4 @@ elib_fl_clip_reset(&ctx);
 
 适用于：消除传感器毛刺、阶跃干扰等突发异常值。
 
-> Q32 限制：`|in - prev|` 使用 int32_t 差值计算，当 in 和 prev 符号相反且差值超过 INT32_MAX 时会溢出。实际使用中 in 和 prev 通常同量级，无此风险。
+> i32/u32 内部用 int64 计算 `in - out` 的绝对值，in/out 取全 32 位范围也不溢出。

@@ -2,7 +2,7 @@
 
 头文件：`elib_fl_mavg.h`（通过 `elib_fl.h` 自动引入）
 
-滑动平均滤波器，零动态分配，滑动窗口，O(1) 更新，支持 float 和 Q32 两种版本。
+滑动平均滤波器，零动态内存，滑动窗口，O(1) 更新。提供 float / i32 / u32 三套实现，纯 C99，无宏分发，按类型显式调用对应函数。
 
 ---
 
@@ -13,43 +13,66 @@
 
 float buf[8];
 elib_fl_mavg_ctx_f_t ctx;
-elib_fl_mavg_init(&ctx, buf, 8);
+elib_fl_mavg_init_f(&ctx, buf, 8);
 
 while (1) {
-    float out = elib_fl_mavg_update(&ctx, read_sensor());
-    use_output(out);  /* 始终有效 */
+    float out = elib_fl_mavg_update_f(&ctx, read_sensor());
+    if (elib_fl_mavg_warmup_f(&ctx)) {
+        use_output(out);  /* 窗口已满，out 为完整窗口均值 */
+    }
 }
 
-uint32_t remain = elib_fl_mavg_warmup(&ctx);  /* 预热剩余 */
-elib_fl_mavg_reset(&ctx);
+elib_fl_mavg_reset_f(&ctx);
 ```
 
-## Q32 版本
+## i32 版本
 
 ```c
 int32_t buf[8];
-elib_fl_mavg_ctx_q32_t ctx;
-elib_fl_mavg_init(&ctx, buf, 8);
+elib_fl_mavg_ctx_i32_t ctx;
+elib_fl_mavg_init_i32(&ctx, buf, 8);
 
 while (1) {
-    int32_t out = elib_fl_mavg_update(&ctx, read_adc());
-    use_output(out);
+    int32_t out = elib_fl_mavg_update_i32(&ctx, read_adc());
+    if (elib_fl_mavg_warmup_i32(&ctx)) {
+        use_output(out);
+    }
 }
 ```
 
-> Q32 版本使用 int32_t 运行和，注意溢出限制：`窗口内采样值之和 ≤ INT32_MAX`，即单个采样值 × 窗口大小不超过 2,147,483,647。
-> 例：窗口 32，采样值上限 = 2,147,483,647 / 32 = 67,108,863。
+> 溢出边界（i32）：窗口内 `|样本|` 之和 ≤ `INT32_MAX`，即 `|单样本| × 窗口 ≤ 2,147,483,647`。
+
+## u32 版本
+
+```c
+uint32_t buf[8];
+elib_fl_mavg_ctx_u32_t ctx;
+elib_fl_mavg_init_u32(&ctx, buf, 8);
+
+while (1) {
+    uint32_t out = elib_fl_mavg_update_u32(&ctx, read_counter());
+    if (elib_fl_mavg_warmup_u32(&ctx)) {
+        use_output(out);
+    }
+}
+```
+
+> 溢出边界（u32）：窗口内样本之和 ≤ `UINT32_MAX`，即 `单样本 × 窗口 ≤ 4,294,967,295`。
 
 ---
 
-## Generic API
+## API
 
-| 宏 | 分发依据 |
-|----|---------|
-| `elib_fl_mavg_init(ctx, ...)` | ctx 类型 |
-| `elib_fl_mavg_update(ctx, in)` | ctx 类型 |
-| `elib_fl_mavg_warmup(ctx)` | ctx 类型 |
-| `elib_fl_mavg_reset(ctx)` | ctx 类型 |
+| 版本 | init | update | warmup | reset |
+|------|------|--------|--------|-------|
+| float | `elib_fl_mavg_init_f` | `elib_fl_mavg_update_f` | `elib_fl_mavg_warmup_f` | `elib_fl_mavg_reset_f` |
+| i32 | `elib_fl_mavg_init_i32` | `elib_fl_mavg_update_i32` | `elib_fl_mavg_warmup_i32` | `elib_fl_mavg_reset_i32` |
+| u32 | `elib_fl_mavg_init_u32` | `elib_fl_mavg_update_u32` | `elib_fl_mavg_warmup_u32` | `elib_fl_mavg_reset_u32` |
+
+- `init(ctx, buf, size)`：绑定用户提供的缓冲区 `buf`（长度 `size`），清零缓冲区，返回 `ELIB_FL_OK` 或 `ELIB_FL_ERR_INVALID_PARAM`。
+- `update(ctx, in)`：压入样本，返回当前窗口均值；窗口未满时返回部分均值（始终是一个数值）。
+- `warmup(ctx)`：就绪标志，窗口未满返回 `0`，首次填满后恒为 `1`（`reset` 后归 `0`）。
+- `reset(ctx)`：清空状态，O(1)，不清缓冲区。
 
 ---
 

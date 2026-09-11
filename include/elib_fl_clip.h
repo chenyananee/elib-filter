@@ -1,10 +1,11 @@
-/* elib_fl_clip.h - Amplitude Limiter Filter */
+/* elib_fl_clip.h - Amplitude Limiter Filter (C99) */
 
 #ifndef ELIB_FL_CLIP_H
 #define ELIB_FL_CLIP_H
 
 #include "elib_fl_err.h"
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -12,12 +13,12 @@ extern "C" {
 #endif
 
 /* ------------------------------------------------------------------ */
-/*  Float context                                                      */
+/*  Float                                                              */
 /* ------------------------------------------------------------------ */
 
 typedef struct {
-    float    out;
-    float    threshold;
+    float out;
+    float threshold;
     struct {
         uint8_t initialized : 1;
     } bit_flags;
@@ -26,51 +27,41 @@ typedef struct {
 elib_fl_err_t elib_fl_clip_init_f(elib_fl_clip_ctx_f_t *ctx, float threshold);
 elib_fl_err_t elib_fl_clip_set_f(elib_fl_clip_ctx_f_t *ctx, float value);
 float         elib_fl_clip_update_f(elib_fl_clip_ctx_f_t *ctx, float in);
-float         elib_fl_clip_oneshot_f(float threshold, float in, float prev);
 void          elib_fl_clip_reset_f(elib_fl_clip_ctx_f_t *ctx);
 
 /* ------------------------------------------------------------------ */
-/*  Q32 context                                                        */
+/*  Int32                                                              */
 /* ------------------------------------------------------------------ */
 
 typedef struct {
-    int32_t  out;
-    int32_t  threshold;    /* Qn format */
-    uint8_t  n;            /* fractional bits */
+    int32_t out;
+    int32_t threshold;
     struct {
         uint8_t initialized : 1;
     } bit_flags;
-} elib_fl_clip_ctx_q32_t;
+} elib_fl_clip_ctx_i32_t;
 
-elib_fl_err_t elib_fl_clip_init_q32(elib_fl_clip_ctx_q32_t *ctx, int32_t threshold, uint8_t n);
-elib_fl_err_t elib_fl_clip_set_q32(elib_fl_clip_ctx_q32_t *ctx, int32_t value);
-int32_t       elib_fl_clip_update_q32(elib_fl_clip_ctx_q32_t *ctx, int32_t in);
-int32_t       elib_fl_clip_oneshot_q32(int32_t threshold, int32_t in, int32_t prev);
-void          elib_fl_clip_reset_q32(elib_fl_clip_ctx_q32_t *ctx);
+elib_fl_err_t elib_fl_clip_init_i32(elib_fl_clip_ctx_i32_t *ctx, int32_t threshold);
+elib_fl_err_t elib_fl_clip_set_i32(elib_fl_clip_ctx_i32_t *ctx, int32_t value);
+int32_t       elib_fl_clip_update_i32(elib_fl_clip_ctx_i32_t *ctx, int32_t in);
+void          elib_fl_clip_reset_i32(elib_fl_clip_ctx_i32_t *ctx);
 
 /* ------------------------------------------------------------------ */
-/*  Generic API                                                        */
+/*  Uint32                                                             */
 /* ------------------------------------------------------------------ */
 
-#define elib_fl_clip_init(ctx, ...) \
-    _Generic((ctx), \
-        elib_fl_clip_ctx_f_t *:   elib_fl_clip_init_f((ctx), __VA_ARGS__), \
-        elib_fl_clip_ctx_q32_t *: elib_fl_clip_init_q32((ctx), __VA_ARGS__))
+typedef struct {
+    uint32_t out;
+    uint32_t threshold;
+    struct {
+        uint8_t initialized : 1;
+    } bit_flags;
+} elib_fl_clip_ctx_u32_t;
 
-#define elib_fl_clip_set(ctx, ...) \
-    _Generic((ctx), \
-        elib_fl_clip_ctx_f_t *:   elib_fl_clip_set_f((ctx), __VA_ARGS__), \
-        elib_fl_clip_ctx_q32_t *: elib_fl_clip_set_q32((ctx), __VA_ARGS__))
-
-#define elib_fl_clip_update(ctx, in) \
-    _Generic((ctx), \
-        elib_fl_clip_ctx_f_t *:   elib_fl_clip_update_f((ctx), (in)), \
-        elib_fl_clip_ctx_q32_t *: elib_fl_clip_update_q32((ctx), (in)))
-
-#define elib_fl_clip_reset(ctx) \
-    _Generic((ctx), \
-        elib_fl_clip_ctx_f_t *:   elib_fl_clip_reset_f(ctx), \
-        elib_fl_clip_ctx_q32_t *: elib_fl_clip_reset_q32(ctx))
+elib_fl_err_t elib_fl_clip_init_u32(elib_fl_clip_ctx_u32_t *ctx, uint32_t threshold);
+elib_fl_err_t elib_fl_clip_set_u32(elib_fl_clip_ctx_u32_t *ctx, uint32_t value);
+uint32_t      elib_fl_clip_update_u32(elib_fl_clip_ctx_u32_t *ctx, uint32_t in);
+void          elib_fl_clip_reset_u32(elib_fl_clip_ctx_u32_t *ctx);
 
 #ifdef __cplusplus
 }

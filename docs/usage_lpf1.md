@@ -2,7 +2,7 @@
 
 头文件：`elib_fl_lpf1.h`（通过 `elib_fl.h` 自动引入）
 
-一阶低通滤波器，零动态分配，支持 float 和 Q32 两种版本，通过 `_Generic` 宏统一 API。
+一阶低通滤波器，零动态分配，纯 C99，提供 float / i32 / u32 三套显式接口。
 
 滤波公式：`y[n] = y[n-1] + α × (x[n] - y[n-1])`
 
@@ -16,49 +16,58 @@
 elib_fl_lpf1_ctx_f_t ctx;
 
 /* 初始化三选一 */
-elib_fl_lpf1_init(&ctx, 0.1f);              /* 直接指定 α */
-elib_fl_lpf1_init_tau_f(&ctx, 0.5f, 0.01f); /* 时间常数 */
-elib_fl_lpf1_init_fc_f(&ctx, 10.0f, 100.0f);/* 截止频率 */
+elib_fl_lpf1_init_f(&ctx, 0.1f);              /* 直接指定 α */
+elib_fl_lpf1_init_tau_f(&ctx, 0.5f, 0.01f);   /* 时间常数 */
+elib_fl_lpf1_init_fc_f(&ctx, 10.0f, 100.0f);  /* 截止频率 */
 
-/* 流式处理 */
-float out = elib_fl_lpf1_update(&ctx, raw);
-
-/* 重置 */
-elib_fl_lpf1_reset(&ctx);
+float out = elib_fl_lpf1_update_f(&ctx, raw);
+elib_fl_lpf1_reset_f(&ctx);
 ```
 
-## Q32 版本
+## i32 版本
+
+`alpha` 为 Qn 定点数，`n` 为小数位数（建议 16）。
 
 ```c
-#include "elib_fl.h"
+elib_fl_lpf1_ctx_i32_t ctx;
 
-elib_fl_lpf1_ctx_q32_t ctx;
+/* 初始化三选一 */
+elib_fl_lpf1_init_i32(&ctx, 6554, 16);               /* α = 0.1 in Q16 */
+elib_fl_lpf1_init_tau_i32(&ctx, 0.5f, 0.01f, 16);
+elib_fl_lpf1_init_fc_i32(&ctx, 10.0f, 100.0f, 16);
 
-/* 初始化三选一，n 为小数位数 */
-elib_fl_lpf1_init(&ctx, 6554, 16);               /* α = 0.1 in Q16 */
-elib_fl_lpf1_init_tau_q32(&ctx, 0.5f, 0.01f, 16); /* 时间常数 */
-elib_fl_lpf1_init_fc_q32(&ctx, 10.0f, 100.0f, 16);/* 截止频率 */
+int32_t out = elib_fl_lpf1_update_i32(&ctx, raw);
+elib_fl_lpf1_reset_i32(&ctx);
+```
 
-/* 流式处理 — 同名宏，编译器自动选择 Q32 版本 */
-int32_t out = elib_fl_lpf1_update(&ctx, raw);
+## u32 版本
 
-/* 重置 */
-elib_fl_lpf1_reset(&ctx);
+```c
+elib_fl_lpf1_ctx_u32_t ctx;
+
+elib_fl_lpf1_init_u32(&ctx, 6554, 16);
+elib_fl_lpf1_init_tau_u32(&ctx, 0.5f, 0.01f, 16);
+elib_fl_lpf1_init_fc_u32(&ctx, 10.0f, 100.0f, 16);
+
+uint32_t out = elib_fl_lpf1_update_u32(&ctx, raw);
+elib_fl_lpf1_reset_u32(&ctx);
 ```
 
 ---
 
-## Generic API
+## API
 
-使用 `_Generic` 宏，根据 ctx 类型自动分发：
+| 版本 | init | init_tau | init_fc | update | reset |
+|------|------|----------|---------|--------|-------|
+| float | `..._init_f` | `..._init_tau_f` | `..._init_fc_f` | `..._update_f` | `..._reset_f` |
+| i32 | `..._init_i32` | `..._init_tau_i32` | `..._init_fc_i32` | `..._update_i32` | `..._reset_i32` |
+| u32 | `..._init_u32` | `..._init_tau_u32` | `..._init_fc_u32` | `..._update_u32` | `..._reset_u32` |
 
-| 宏 | 分发依据 |
-|----|---------|
-| `elib_fl_lpf1_init(ctx, ...)` | ctx 类型 |
-| `elib_fl_lpf1_update(ctx, in)` | ctx 类型 |
-| `elib_fl_lpf1_reset(ctx)` | ctx 类型 |
-
-`init_tau` 和 `init_fc` 因参数列表不同，需显式调用 `_f` 或 `_q32` 后缀版本。
+- `init(ctx, alpha[, n])`：直接指定 α；float 版 α ∈ (0, 1)，i32/u32 版 α 为 Qn 定点，`0 < α < 2^n`。
+- `init_tau(ctx, tau, dt[, n])`：由时间常数换算 α。
+- `init_fc(ctx, fc, fs[, n])`：由截止频率换算 α。
+- `update(ctx, in)`：处理一个样本，返回滤波输出。
+- `reset(ctx)`：清零内部状态。
 
 ---
 
@@ -71,6 +80,6 @@ elib_fl_lpf1_reset(&ctx);
 | 0.5 | 32768 | 平衡响应与平滑 |
 | 0.9 | 58982 | 接近直通，响应极快 |
 
-Q32 的 `n` 建议使用 16，兼顾精度和范围。`alpha = (int)(float_alpha × (1 << n) + 0.5f)`
+i32/u32 建议 `n = 16`，兼顾精度和范围：`alpha = (int)(float_alpha × (1 << n) + 0.5f)`。
 
-> Q32 限制：输入值范围为 int32_t 全范围。`alpha × diff` 内部使用 int64_t 中间结果后右移回 int32_t，无溢出风险。
+> i32/u32 内部用 int64 有符号中间量计算 `alpha × (in - out)`，输入取全 int32 范围也不溢出。

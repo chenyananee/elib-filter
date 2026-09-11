@@ -1,8 +1,8 @@
-/* elib_fl_median_core.c - Median Filter (Float) */
+/* elib_fl_median_core_f.c - Median Filter (Float) */
 
 #include "elib_fl_median_core.h"
 
-static void median_insertion_sort_f(float *buf, uint32_t size)
+static void median_sort_f(float *buf, uint32_t size)
 {
     for (uint32_t i = 1; i < size; i++) {
         float key = buf[i];
@@ -15,12 +15,6 @@ static void median_insertion_sort_f(float *buf, uint32_t size)
     }
 }
 
-static float median_compute_f(float *buf, uint32_t size)
-{
-    median_insertion_sort_f(buf, size);
-    return buf[size / 2];
-}
-
 elib_fl_err_t elib_fl_median_init_f(elib_fl_median_ctx_f_t *ctx, float *buf, uint32_t size)
 {
     if (ctx == NULL || buf == NULL || size == 0) {
@@ -31,6 +25,7 @@ elib_fl_err_t elib_fl_median_init_f(elib_fl_median_ctx_f_t *ctx, float *buf, uin
     ctx->size = size;
     ctx->count = 0;
     ctx->bit_flags.initialized = 1;
+    ctx->bit_flags.ready = 0;
 
     return ELIB_FL_OK;
 }
@@ -45,22 +40,25 @@ float elib_fl_median_update_f(elib_fl_median_ctx_f_t *ctx, float in)
     ctx->count++;
 
     if (ctx->count < ctx->size) {
+        ctx->bit_flags.ready = 0;
         return 0.0f;
     }
 
-    float result = median_compute_f(ctx->buf, ctx->size);
+    median_sort_f(ctx->buf, ctx->size);
+    float result = ctx->buf[ctx->size / 2];
     ctx->count = 0;
+    ctx->bit_flags.ready = 1;
 
     return result;
 }
 
-float elib_fl_median_oneshot_f(float *buf, uint32_t size)
+uint32_t elib_fl_median_warmup_f(const elib_fl_median_ctx_f_t *ctx)
 {
-    if (buf == NULL || size == 0) {
-        return 0.0f;
+    if (ctx == NULL || !ctx->bit_flags.initialized) {
+        return 0;
     }
 
-    return median_compute_f(buf, size);
+    return ctx->bit_flags.ready ? 1u : 0u;
 }
 
 void elib_fl_median_reset_f(elib_fl_median_ctx_f_t *ctx)
@@ -68,5 +66,7 @@ void elib_fl_median_reset_f(elib_fl_median_ctx_f_t *ctx)
     if (ctx == NULL || !ctx->bit_flags.initialized) {
         return;
     }
+
     ctx->count = 0;
+    ctx->bit_flags.ready = 0;
 }

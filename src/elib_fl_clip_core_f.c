@@ -1,4 +1,4 @@
-/* elib_fl_clip_core.c - Amplitude Limiter (Float) */
+/* elib_fl_clip_core_f.c - Amplitude Limiter (Float) */
 
 #include "elib_fl_clip_core.h"
 
@@ -44,23 +44,11 @@ float elib_fl_clip_update_f(elib_fl_clip_ctx_f_t *ctx, float in)
     return ctx->out;
 }
 
-float elib_fl_clip_oneshot_f(float threshold, float in, float prev)
-{
-    float diff = in - prev;
-    if (diff < 0.0f) {
-        diff = -diff;
-    }
-
-    if (diff <= threshold) {
-        return in;
-    }
-    return prev;
-}
-
 void elib_fl_clip_reset_f(elib_fl_clip_ctx_f_t *ctx)
 {
     if (ctx == NULL || !ctx->bit_flags.initialized) {
         return;
     }
+
     ctx->out = 0.0f;
 }
