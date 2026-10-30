@@ -1,12 +1,14 @@
-# clip 模块用法
+# slew 模块用法
 
 头文件：`elib_fl.h`
 
-变化率限幅滤波器（名字属历史遗留，**不是幅度钳制**），零动态分配，纯 C99，提供 float / i16 / i32 / u16 / u32 五套显式接口。
+压摆率限幅器（slew-rate limiter，v2 及之前叫 `clip`，v3 起正名），零动态分配，纯 C99，提供 float / i16 / i32 / u16 / u32 五套显式接口。
 
-判定规则：`|x[n] - y[n-1]| ≤ threshold → y[n] = x[n]`， 否则 `y[n] = y[n-1]（拒绝突变，保持上次输出）`
+判定规则：`|x[n] - y[n-1]| ≤ threshold → y[n] = x[n]`， 否则 `y[n] = y[n-1]（步进超出阈值即拒绝，保持上次输出）`
 
-与 deadband 互为镜像：clip 吞**大**突变（抗尖刺），deadband 吞**小**变化（抗抖动）。
+**不是幅度钳制**：每个输出步的斜率受限，输出是"变化率被限住"的信号，不是上下限包络。
+
+与 deadband 互为镜像：slew 吞**大**突变（抗尖刺），deadband 吞**小**变化（抗抖动）。
 
 ---
 
@@ -15,56 +17,56 @@
 ```c
 #include "elib_fl.h"
 
-elib_fl_clip_ctx_f_t ctx;
-elib_fl_clip_init_f(&ctx, 5.0f);      /* threshold = 5.0 */
-elib_fl_clip_set_f(&ctx, 100.0f);     /* 设置初始值 */
+elib_fl_slew_ctx_f_t ctx;
+elib_fl_slew_init_f(&ctx, 5.0f);      /* threshold = 5.0 */
+elib_fl_slew_set_f(&ctx, 100.0f);     /* 设置初始值 */
 
-float out = elib_fl_clip_update_f(&ctx, raw);
-elib_fl_clip_reset_f(&ctx);
+float out = elib_fl_slew_update_f(&ctx, raw);
+elib_fl_slew_reset_f(&ctx);
 ```
 
 ## i16 版本
 
 ```c
-elib_fl_clip_ctx_i16_t ctx;
-elib_fl_clip_init_i16(&ctx, 50);      /* threshold = 50 */
-elib_fl_clip_set_i16(&ctx, 1000);
+elib_fl_slew_ctx_i16_t ctx;
+elib_fl_slew_init_i16(&ctx, 50);      /* threshold = 50 */
+elib_fl_slew_set_i16(&ctx, 1000);
 
-int16_t out = elib_fl_clip_update_i16(&ctx, raw);
-elib_fl_clip_reset_i16(&ctx);
+int16_t out = elib_fl_slew_update_i16(&ctx, raw);
+elib_fl_slew_reset_i16(&ctx);
 ```
 
 ## i32 版本
 
 ```c
-elib_fl_clip_ctx_i32_t ctx;
-elib_fl_clip_init_i32(&ctx, 500);
-elib_fl_clip_set_i32(&ctx, 10000);
+elib_fl_slew_ctx_i32_t ctx;
+elib_fl_slew_init_i32(&ctx, 500);
+elib_fl_slew_set_i32(&ctx, 10000);
 
-int32_t out = elib_fl_clip_update_i32(&ctx, raw);
-elib_fl_clip_reset_i32(&ctx);
+int32_t out = elib_fl_slew_update_i32(&ctx, raw);
+elib_fl_slew_reset_i32(&ctx);
 ```
 
 ## u16 版本
 
 ```c
-elib_fl_clip_ctx_u16_t ctx;
-elib_fl_clip_init_u16(&ctx, 50);
-elib_fl_clip_set_u16(&ctx, 1000);
+elib_fl_slew_ctx_u16_t ctx;
+elib_fl_slew_init_u16(&ctx, 50);
+elib_fl_slew_set_u16(&ctx, 1000);
 
-uint16_t out = elib_fl_clip_update_u16(&ctx, raw);
-elib_fl_clip_reset_u16(&ctx);
+uint16_t out = elib_fl_slew_update_u16(&ctx, raw);
+elib_fl_slew_reset_u16(&ctx);
 ```
 
 ## u32 版本
 
 ```c
-elib_fl_clip_ctx_u32_t ctx;
-elib_fl_clip_init_u32(&ctx, 500);
-elib_fl_clip_set_u32(&ctx, 10000);
+elib_fl_slew_ctx_u32_t ctx;
+elib_fl_slew_init_u32(&ctx, 500);
+elib_fl_slew_set_u32(&ctx, 10000);
 
-uint32_t out = elib_fl_clip_update_u32(&ctx, raw);
-elib_fl_clip_reset_u32(&ctx);
+uint32_t out = elib_fl_slew_update_u32(&ctx, raw);
+elib_fl_slew_reset_u32(&ctx);
 ```
 
 ---
@@ -73,16 +75,18 @@ elib_fl_clip_reset_u32(&ctx);
 
 | 版本 | init | set | update | reset |
 |------|------|-----|--------|-------|
-| float | `elib_fl_clip_init_f` | `elib_fl_clip_set_f` | `elib_fl_clip_update_f` | `elib_fl_clip_reset_f` |
-| i16 | `elib_fl_clip_init_i16` | `elib_fl_clip_set_i16` | `elib_fl_clip_update_i16` | `elib_fl_clip_reset_i16` |
-| i32 | `elib_fl_clip_init_i32` | `elib_fl_clip_set_i32` | `elib_fl_clip_update_i32` | `elib_fl_clip_reset_i32` |
-| u16 | `elib_fl_clip_init_u16` | `elib_fl_clip_set_u16` | `elib_fl_clip_update_u16` | `elib_fl_clip_reset_u16` |
-| u32 | `elib_fl_clip_init_u32` | `elib_fl_clip_set_u32` | `elib_fl_clip_update_u32` | `elib_fl_clip_reset_u32` |
+| float | `elib_fl_slew_init_f` | `elib_fl_slew_set_f` | `elib_fl_slew_update_f` | `elib_fl_slew_reset_f` |
+| i16 | `elib_fl_slew_init_i16` | `elib_fl_slew_set_i16` | `elib_fl_slew_update_i16` | `elib_fl_slew_reset_i16` |
+| i32 | `elib_fl_slew_init_i32` | `elib_fl_slew_set_i32` | `elib_fl_slew_update_i32` | `elib_fl_slew_reset_i32` |
+| u16 | `elib_fl_slew_init_u16` | `elib_fl_slew_set_u16` | `elib_fl_slew_update_u16` | `elib_fl_slew_reset_u16` |
+| u32 | `elib_fl_slew_init_u32` | `elib_fl_slew_set_u32` | `elib_fl_slew_update_u32` | `elib_fl_slew_reset_u32` |
 
 - `init(ctx, threshold)`：设置限幅阈值（必须 > 0）。
 - `set(ctx, value)`：设置初始输出值，返回 `ELIB_FL_OK` 或 `ELIB_FL_ERR_NOT_INITIALIZED`。
 - `update(ctx, in)`：与当前输出比较，差值在阈值内则接受新值，否则保持。
 - `reset(ctx)`：清零输出。
+
+> **v2 → v3 迁移**：`elib_fl_clip_*` 全部改名 `elib_fl_slew_*`（类型 10 个、函数 20 个），语义与参数完全不变；头文件 `elib_fl_clip.h` 早在 v2 已并入 `elib_fl.h`，无其它迁移成本。
 
 ---
 

@@ -1,14 +1,15 @@
 # elib-filter
 
-零动态内存分配的嵌入式 C 滤波算法库，纯 C99，无外部依赖。每个滤波器提供 **float / i16 / i32 / u16 / u32** 五套实现，显式后缀调用，不使用宏分发。单一公共头 `elib_fl.h`，`-Werror` 一等公民。
+零动态内存分配的嵌入式 C 滤波算法库，纯 C99，无外部依赖。每个滤波器提供 **float / i16 / i32 / u16 / u32** 五套实现，显式后缀调用，不使用宏分发。单一公共头 `elib_fl.h`，`-Werror` 一等公民。当前版本 `3.0.0`（`ELIB_FL_VERSION`）。
 
 ## 用法文档
 
 | 模块 | 文档 |
 |------|------|
 | lpf1 | [docs/usage_lpf1.md](docs/usage_lpf1.md) |
-| clip | [docs/usage_clip.md](docs/usage_clip.md) |
+| slew | [docs/usage_slew.md](docs/usage_slew.md) |
 | deadband | [docs/usage_deadband.md](docs/usage_deadband.md) |
+| hyst | [docs/usage_hyst.md](docs/usage_hyst.md) |
 | median | [docs/usage_median.md](docs/usage_median.md) |
 | avg | [docs/usage_avg.md](docs/usage_avg.md) |
 | mavg | [docs/usage_mavg.md](docs/usage_mavg.md) |
@@ -20,8 +21,9 @@
 | 模块 | 说明 |
 |------|------|
 | lpf1 | 一阶低通 IIR 滤波器（alpha / 时间常数 / 截止频率三种初始化） |
-| clip | 变化率限幅滤波器（拒绝突变样本，保持上次输出；**不是幅度钳制**，名字属历史遗留） |
-| deadband | 死区滤波器（忽略阈值内的小变化，保持上次输出；clip 的镜像：小变化保持、大变化跟随） |
+| slew | 压摆率限幅器（拒绝突变样本，保持上次输出；**不是幅度钳制**，v2 及之前叫 `clip`，v3 正名） |
+| deadband | 死区滤波器（忽略阈值内的小变化，保持上次输出；slew 的镜像：小变化保持、大变化跟随） |
+| hyst | 单边界滞回器（粘滞带 + 回落死区 + 跳变直通；分级是业务层的事，库只返回稳定值） |
 | median | 中位值滤波器（非重叠批窗，每 N 样本出一拍） |
 | avg | 平均滤波器（非重叠批窗，每 N 样本出一拍） |
 | mavg | 滑动平均滤波器（每样本出一拍，O(1) 更新） |
@@ -64,8 +66,8 @@ lpf1 的整数版本 alpha 为 Qn 定点数：32 位版 `n` 取 1..31，16 位�
 | 类型 | 中途运算宽度 | 保证 |
 |------|-------------|------|
 | `_f` | float | — |
-| `_i32` / `_u32` | 64 位累加器（avg/mavg）、int64 中间量（lpf1）、int64 差值（clip） | **任意样本值 × 任意窗长**无溢出 |
-| `_i16` / `_u16` | 32 位中间量（有界论证） | lpf1/clip：\|α×diff\| ≤ 32767×65535 < 2^31；avg/mavg：init **强制窗长 ≤ 65535**（最坏窗和严格小于 2^31/2^32），更长的窗口在 init 即被拒 |
+| `_i32` / `_u32` | 64 位累加器（avg/mavg）、int64 中间量（lpf1）、int64 差值（slew/hyst） | **任意样本值 × 任意窗长**无溢出 |
+| `_i16` / `_u16` | 32 位中间量（有界论证） | lpf1/slew：\|α×diff\| ≤ 32767×65535 < 2^31；hyst/deadband：\|diff\| ≤ 2^16−1 恒安全；avg/mavg：init **强制窗长 ≤ 65535**（最坏窗和严格小于 2^31/2^32），更长的窗口在 init 即被拒 |
 
 ## 功能列表
 
@@ -81,22 +83,22 @@ lpf1 的整数版本 alpha 为 Qn 定点数：32 位版 `n` 取 1..31，16 位�
 | `elib_fl_lpf1_update_*(ctx, in)` | float → float | 数值 → 同型 |
 | `elib_fl_lpf1_reset_*(ctx)` | ✓ | ✓ |
 
-### clip — 变化率限幅滤波器
+### slew — 压摆率限幅器
 
 > `|x[n] - y[n-1]| ≤ threshold → y[n] = x[n]`，否则保持 y[n-1]。
-> 语义是**拒绝大突变**（保持上次输出），不是对幅度做钳制。
+> 语义是**拒绝大突变**（保持上次输出），不是对幅度做钳制。v2 及之前叫 `clip`，v3 正名。
 
 | 函数 | float | 整数五版本 |
 |------|-------|-----------|
-| `elib_fl_clip_init_*(ctx, threshold)` | float | 数值，须 > 0 |
-| `elib_fl_clip_set_*(ctx, value)` | float | 数值；未初始化返 `NOT_INITIALIZED` |
-| `elib_fl_clip_update_*(ctx, in)` | float → float | 数值 → 同型（16/32 位版差值走 int32/int64，满量程安全） |
-| `elib_fl_clip_reset_*(ctx)` | ✓ | ✓ |
+| `elib_fl_slew_init_*(ctx, threshold)` | float | 数值，须 > 0 |
+| `elib_fl_slew_set_*(ctx, value)` | float | 数值；未初始化返 `NOT_INITIALIZED` |
+| `elib_fl_slew_update_*(ctx, in)` | float → float | 数值 → 同型（16/32 位版差值走 int32/int64，满量程安全） |
+| `elib_fl_slew_reset_*(ctx)` | ✓ | ✓ |
 
 ### deadband — 死区滤波器
 
 > `|x[n] - y[n-1]| ≤ threshold → 保持 y[n-1]`，否则跟随 `x[n]`。
-> clip 的镜像：**小变化被忽略**（抗抖动），大变化原样放行。死区含边界（`≤` 保持）。
+> slew 的镜像：**小变化被忽略**（抗抖动），大变化原样放行。死区含边界（`≤` 保持）。
 
 | 函数 | float | 整数五版本 |
 |------|-------|-----------|
@@ -106,6 +108,20 @@ lpf1 的整数版本 alpha 为 Qn 定点数：32 位版 `n` 取 1..31，16 位�
 | `elib_fl_deadband_reset_*(ctx)` | ✓ | ✓ |
 
 无窗口、无 warmup 概念：首个 update 即有效输出。
+
+### hyst — 单边界滞回器
+
+> 一条决策边界 `boundary`，三参数：滞回宽度 `hyst`（> 0）、跳变直通宽度 `snap`（> hyst，init 强制）。
+> 爬向边界的样本在 `boundary < in ≤ boundary + hyst` 内被**钳在 boundary**；越界后回落 `≤ hyst` 被**保持**（Schmitt 滞回）；`|in − out| > snap` 的真跳变**原样直通**。
+
+| 函数 | float | 整数五版本 |
+|------|-------|-----------|
+| `elib_fl_hyst_init_*(ctx, boundary, hyst, snap)` | float | 数值；`hyst > 0` 且 `snap > hyst`，违规 init 拒收 |
+| `elib_fl_hyst_set_*(ctx, value)` | float | 种子值（自动判 HIGH/LOW）；未初始化返 `NOT_INITIALIZED` |
+| `elib_fl_hyst_update_*(ctx, in)` | float → float | 数值 → 同型（NaN 吞掉保持输出） |
+| `elib_fl_hyst_reset_*(ctx)` | ✓ | ✓ |
+
+**不做分级**：每条边界一个实例；等级由业务层对多个实例的 `above` 位组合得出。
 
 ### median — 中位值滤波器
 
@@ -152,7 +168,14 @@ lpf1 的整数版本 alpha 为 Qn 定点数：32 位版 `n` 取 1..31，16 位�
 | 6 子头 + 5 内部壳头 | 唯一 `elib_fl.h` | 子头删除，所有 `.c` 直连伞头 |
 | init 不清 ctx | init memset ctx | ctx 全量不变量 |
 | — | 新增 `_i16`/`_u16` 五版本 | 32 位中途 + 窗长上限严防溢出 |
-| — | 新增 `deadband` 模块 | 死区滤波（clip 的镜像），六模块 × 五版本 = 30 源 |
+| — | 新增 `deadband` 模块 | 死区滤波（slew 的镜像） |
+
+### v2 → v3 迁移对照
+
+| v2 | v3 | 说明 |
+|----|----|------|
+| `elib_fl_clip_*` | `elib_fl_slew_*` | 正名：压摆率限幅器。类型 10 个、函数 20 个全量改名，语义与参数不变；无兼容别名 |
+| — | 新增 `hyst` 模块 | 单边界滞回器（boundary/hyst/snap 三参数），七模块 × 五版本 = 35 源；公共 API 破坏性变化随改名一并记入主版本 `3.0.0` |
 
 未满窗口 / 未初始化时 update 返回 0（哨兵语义，0 是合法输出时的歧义用 `ready()` 消解）——v2 文档钉死该行为，不新增错误通道。
 
@@ -169,23 +192,28 @@ lpf1 的整数版本 alpha 为 Qn 定点数：32 位版 `n` 取 1..31，16 位�
 ```
 elib-filter/
 ├── include/
-│   └── elib_fl.h                  # 唯一公共头（错误码 + 五模块五版本）
+│   └── elib_fl.h                  # 唯一公共头（错误码 + 七模块五版本）
 ├── src/
 │   ├── elib_fl_lpf1_core_f.c      # lpf1 五版本实现
 │   ├── elib_fl_lpf1_core_i16.c
 │   ├── elib_fl_lpf1_core_i32.c
 │   ├── elib_fl_lpf1_core_u16.c
 │   ├── elib_fl_lpf1_core_u32.c
-│   ├── elib_fl_clip_core_f.c      # clip 五版本实现
-│   ├── elib_fl_clip_core_i16.c
-│   ├── elib_fl_clip_core_i32.c
-│   ├── elib_fl_clip_core_u16.c
-│   ├── elib_fl_clip_core_u32.c
-│   ├── elib_fl_deadband_core_f.c   # deadband 五版本实现
+│   ├── elib_fl_slew_core_f.c        # slew 五版本实现（v2 的 clip 改名）
+│   ├── elib_fl_slew_core_i16.c
+│   ├── elib_fl_slew_core_i32.c
+│   ├── elib_fl_slew_core_u16.c
+│   ├── elib_fl_slew_core_u32.c
+│   ├── elib_fl_deadband_core_f.c    # deadband 五版本实现
 │   ├── elib_fl_deadband_core_i16.c
 │   ├── elib_fl_deadband_core_i32.c
 │   ├── elib_fl_deadband_core_u16.c
 │   ├── elib_fl_deadband_core_u32.c
+│   ├── elib_fl_hyst_core_f.c        # hyst 五版本实现
+│   ├── elib_fl_hyst_core_i16.c
+│   ├── elib_fl_hyst_core_i32.c
+│   ├── elib_fl_hyst_core_u16.c
+│   ├── elib_fl_hyst_core_u32.c
 │   ├── elib_fl_median_core_f.c    # median 五版本实现
 │   ├── elib_fl_median_core_i16.c
 │   ├── elib_fl_median_core_i32.c
@@ -203,15 +231,17 @@ elib-filter/
 │   └── elib_fl_mavg_core_u32.c
 ├── test/
 │   ├── test_elib_fl_lpf1.c
-│   ├── test_elib_fl_clip.c
+│   ├── test_elib_fl_slew.c
 │   ├── test_elib_fl_deadband.c
+│   ├── test_elib_fl_hyst.c
 │   ├── test_elib_fl_median.c
 │   ├── test_elib_fl_avg.c
 │   └── test_elib_fl_mavg.c
 ├── docs/
 │   ├── usage_lpf1.md
-│   ├── usage_clip.md
+│   ├── usage_slew.md
 │   ├── usage_deadband.md
+│   ├── usage_hyst.md
 │   ├── usage_median.md
 │   ├── usage_avg.md
 │   └── usage_mavg.md
