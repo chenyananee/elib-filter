@@ -1,3 +1,5 @@
+**简体中文** | [English](README.en.md)
+
 # elib-filter
 
 零动态内存分配的嵌入式 C 滤波算法库，纯 C99，无外部依赖。每个滤波器提供 **float / i16 / i32 / u16 / u32** 五套实现，显式后缀调用，不使用宏分发。单一公共头 `elib_fl.h`，`-Werror` 一等公民。当前版本 `3.0.0`（`ELIB_FL_VERSION`）。
