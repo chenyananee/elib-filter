@@ -1,6 +1,7 @@
 /* elib_fl_lpf1_core_u32.c - First-Order Low-Pass Filter (Uint32, Qn alpha) */
 
-#include "elib_fl_lpf1_core.h"
+#include "elib_fl.h"
+#include <string.h>
 
 #define ELIB_FL_LPF1_PI 3.14159265358979323846f
 
@@ -13,20 +14,10 @@ static int64_t lpf1_u32_mulshift(int64_t diff, uint32_t alpha, uint8_t n)
     return hi * (int64_t)alpha + (((int64_t)alpha * lo) >> n);
 }
 
-elib_fl_err_t elib_fl_lpf1_init_u32(elib_fl_lpf1_ctx_u32_t *ctx, uint32_t alpha, uint8_t n)
-{
-    if (ctx == NULL || n == 0 || n > 31 || alpha == 0 || alpha >= (1U << n)) {
-        return ELIB_FL_ERR_INVALID_PARAM;
-    }
-
-    ctx->alpha = alpha;
-    ctx->n = n;
-    ctx->out = 0;
-    ctx->bit_flags.initialized = 1;
-
-    return ELIB_FL_OK;
-}
-
+/* Quantize a float alpha to Qn; keep the 0 < alpha < 2^n invariant
+   absolute (a rounded-up 2^n would turn the filter into a
+   pass-through). Currently unreachable via init_tau/init_fc (both
+   cap alpha at 0.5), but it is the single guard that matters. */
 static elib_fl_err_t lpf1_u32_set_alpha(elib_fl_lpf1_ctx_u32_t *ctx, float alpha_f, uint8_t n)
 {
     uint64_t scaled = (uint64_t)((double)alpha_f * (double)(1U << n) + 0.5);
@@ -36,7 +27,20 @@ static elib_fl_err_t lpf1_u32_set_alpha(elib_fl_lpf1_ctx_u32_t *ctx, float alpha
 
     ctx->alpha = (uint32_t)scaled;
     ctx->n = n;
-    ctx->out = 0;
+    ctx->bit_flags.initialized = 1;
+
+    return ELIB_FL_OK;
+}
+
+elib_fl_err_t elib_fl_lpf1_init_u32(elib_fl_lpf1_ctx_u32_t *ctx, uint32_t alpha, uint8_t n)
+{
+    if (ctx == NULL || n == 0 || n > 31 || alpha == 0 || alpha >= (1U << n)) {
+        return ELIB_FL_ERR_INVALID_PARAM;
+    }
+
+    memset(ctx, 0, sizeof(*ctx));
+    ctx->alpha = alpha;
+    ctx->n = n;
     ctx->bit_flags.initialized = 1;
 
     return ELIB_FL_OK;

@@ -1,6 +1,10 @@
-/* elib_fl_clip_core_f.c - Amplitude Limiter (Float) */
+/* elib_fl_clip_core_f.c - Rate-of-Change Limiter (Float)
+ *
+ * Rejects steps larger than the threshold (holds the last output);
+ * accepts everything else. It is NOT an amplitude clamp. */
 
-#include "elib_fl_clip_core.h"
+#include "elib_fl.h"
+#include <string.h>
 
 elib_fl_err_t elib_fl_clip_init_f(elib_fl_clip_ctx_f_t *ctx, float threshold)
 {
@@ -8,8 +12,8 @@ elib_fl_err_t elib_fl_clip_init_f(elib_fl_clip_ctx_f_t *ctx, float threshold)
         return ELIB_FL_ERR_INVALID_PARAM;
     }
 
+    memset(ctx, 0, sizeof(*ctx));
     ctx->threshold = threshold;
-    ctx->out = 0.0f;
     ctx->bit_flags.initialized = 1;
 
     return ELIB_FL_OK;

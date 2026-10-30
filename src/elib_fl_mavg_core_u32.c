@@ -1,6 +1,11 @@
-/* elib_fl_mavg_core_u32.c - Moving Average Filter (Uint32) */
+/* elib_fl_mavg_core_u32.c - Sliding-Window Mean Filter (Uint32)
+ *
+ * O(1) sliding average with a 64-BIT accumulator: any uint32 values
+ * over any window length run without wraparound (the v1 uint32 sum
+ * wrapped silently). Returns sum/count truncated. */
 
-#include "elib_fl_mavg_core.h"
+#include "elib_fl.h"
+#include <string.h>
 
 elib_fl_err_t elib_fl_mavg_init_u32(elib_fl_mavg_ctx_u32_t *ctx, uint32_t *buf, uint32_t size)
 {
@@ -8,11 +13,9 @@ elib_fl_err_t elib_fl_mavg_init_u32(elib_fl_mavg_ctx_u32_t *ctx, uint32_t *buf, 
         return ELIB_FL_ERR_INVALID_PARAM;
     }
 
+    memset(ctx, 0, sizeof(*ctx));
     ctx->buf = buf;
     ctx->size = size;
-    ctx->sum = 0;
-    ctx->idx = 0;
-    ctx->count = 0;
     ctx->bit_flags.initialized = 1;
 
     for (uint32_t i = 0; i < size; i++) {
@@ -38,10 +41,10 @@ uint32_t elib_fl_mavg_update_u32(elib_fl_mavg_ctx_u32_t *ctx, uint32_t in)
     ctx->sum += in;
     ctx->idx = (ctx->idx + 1) % ctx->size;
 
-    return ctx->sum / ctx->count;
+    return (uint32_t)(ctx->sum / (uint64_t)ctx->count);
 }
 
-uint32_t elib_fl_mavg_warmup_u32(const elib_fl_mavg_ctx_u32_t *ctx)
+uint32_t elib_fl_mavg_ready_u32(const elib_fl_mavg_ctx_u32_t *ctx)
 {
     if (ctx == NULL || !ctx->bit_flags.initialized) {
         return 0;

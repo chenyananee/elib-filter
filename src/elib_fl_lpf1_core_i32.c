@@ -1,9 +1,9 @@
 /* elib_fl_lpf1_core_i32.c - First-Order Low-Pass Filter (Int32, Qn alpha) */
 
-#include "elib_fl_lpf1_core.h"
+#include "elib_fl.h"
+#include <string.h>
 
 #define ELIB_FL_LPF1_PI 3.14159265358979323846f
-#define ELIB_FL_LPF1_I32_MAX 2147483647LL
 
 /* (alpha * diff) >> n without overflowing int64: split diff into high/low
    parts so each product stays well below 2^63. */
@@ -14,30 +14,34 @@ static int64_t lpf1_i32_mulshift(int64_t diff, int32_t alpha, uint8_t n)
     return hi * (int64_t)alpha + (((int64_t)alpha * lo) >> n);
 }
 
+/* Quantize a float alpha to Qn. The stored invariant is 0 < alpha < 2^n
+   (NOT "fits in int32"): a rounded-up value equal to 2^n would turn the
+   filter into a pass-through (alpha*diff >> n == diff). The check is
+   currently unreachable via init_tau/init_fc (both cap alpha at 0.5),
+   but it is the single guard that keeps the invariant absolute. */
+static elib_fl_err_t lpf1_i32_set_alpha(elib_fl_lpf1_ctx_i32_t *ctx, float alpha_f, uint8_t n)
+{
+    int64_t scaled = (int64_t)((double)alpha_f * (double)(1U << n) + 0.5);
+    if (scaled <= 0 || scaled >= (int64_t)(1U << n)) {
+        return ELIB_FL_ERR_INVALID_PARAM;
+    }
+
+    ctx->alpha = (int32_t)scaled;
+    ctx->n = n;
+    ctx->bit_flags.initialized = 1;
+
+    return ELIB_FL_OK;
+}
+
 elib_fl_err_t elib_fl_lpf1_init_i32(elib_fl_lpf1_ctx_i32_t *ctx, int32_t alpha, uint8_t n)
 {
     if (ctx == NULL || n == 0 || n > 31 || alpha <= 0 || (uint32_t)alpha >= (1U << n)) {
         return ELIB_FL_ERR_INVALID_PARAM;
     }
 
+    memset(ctx, 0, sizeof(*ctx));
     ctx->alpha = alpha;
     ctx->n = n;
-    ctx->out = 0;
-    ctx->bit_flags.initialized = 1;
-
-    return ELIB_FL_OK;
-}
-
-static elib_fl_err_t lpf1_i32_set_alpha(elib_fl_lpf1_ctx_i32_t *ctx, float alpha_f, uint8_t n)
-{
-    int64_t scaled = (int64_t)((double)alpha_f * (double)(1U << n) + 0.5);
-    if (scaled <= 0 || scaled > ELIB_FL_LPF1_I32_MAX) {
-        return ELIB_FL_ERR_INVALID_PARAM;
-    }
-
-    ctx->alpha = (int32_t)scaled;
-    ctx->n = n;
-    ctx->out = 0;
     ctx->bit_flags.initialized = 1;
 
     return ELIB_FL_OK;

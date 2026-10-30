@@ -1,6 +1,11 @@
-/* elib_fl_avg_core_f.c - Average Filter (Float) */
+/* elib_fl_avg_core_f.c - Batch Average Filter (Float)
+ *
+ * Non-overlapping window: one mean every `size` updates, then the
+ * accumulator restarts. 0 is the warmup sentinel (a genuine zero
+ * mean is indistinguishable -- poll ready() instead). */
 
-#include "elib_fl_avg_core.h"
+#include "elib_fl.h"
+#include <string.h>
 
 elib_fl_err_t elib_fl_avg_init_f(elib_fl_avg_ctx_f_t *ctx, uint32_t size)
 {
@@ -8,11 +13,9 @@ elib_fl_err_t elib_fl_avg_init_f(elib_fl_avg_ctx_f_t *ctx, uint32_t size)
         return ELIB_FL_ERR_INVALID_PARAM;
     }
 
+    memset(ctx, 0, sizeof(*ctx));
     ctx->size = size;
-    ctx->sum = 0.0f;
-    ctx->count = 0;
     ctx->bit_flags.initialized = 1;
-    ctx->bit_flags.ready = 0;
 
     return ELIB_FL_OK;
 }
@@ -39,7 +42,7 @@ float elib_fl_avg_update_f(elib_fl_avg_ctx_f_t *ctx, float in)
     return result;
 }
 
-uint32_t elib_fl_avg_warmup_f(const elib_fl_avg_ctx_f_t *ctx)
+uint32_t elib_fl_avg_ready_f(const elib_fl_avg_ctx_f_t *ctx)
 {
     if (ctx == NULL || !ctx->bit_flags.initialized) {
         return 0;

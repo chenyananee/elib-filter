@@ -1,6 +1,11 @@
-/* elib_fl_mavg_core_f.c - Moving Average Filter (Float) */
+/* elib_fl_mavg_core_f.c - Sliding-Window Mean Filter (Float)
+ *
+ * O(1) sliding average: ring buffer + running sum. Every update
+ * returns the current (possibly partial) window mean; once the
+ * window has filled it stays a full-window mean until reset. */
 
-#include "elib_fl_mavg_core.h"
+#include "elib_fl.h"
+#include <string.h>
 
 elib_fl_err_t elib_fl_mavg_init_f(elib_fl_mavg_ctx_f_t *ctx, float *buf, uint32_t size)
 {
@@ -8,11 +13,9 @@ elib_fl_err_t elib_fl_mavg_init_f(elib_fl_mavg_ctx_f_t *ctx, float *buf, uint32_
         return ELIB_FL_ERR_INVALID_PARAM;
     }
 
+    memset(ctx, 0, sizeof(*ctx));
     ctx->buf = buf;
     ctx->size = size;
-    ctx->sum = 0.0f;
-    ctx->idx = 0;
-    ctx->count = 0;
     ctx->bit_flags.initialized = 1;
 
     for (uint32_t i = 0; i < size; i++) {
@@ -41,7 +44,7 @@ float elib_fl_mavg_update_f(elib_fl_mavg_ctx_f_t *ctx, float in)
     return ctx->sum / (float)ctx->count;
 }
 
-uint32_t elib_fl_mavg_warmup_f(const elib_fl_mavg_ctx_f_t *ctx)
+uint32_t elib_fl_mavg_ready_f(const elib_fl_mavg_ctx_f_t *ctx)
 {
     if (ctx == NULL || !ctx->bit_flags.initialized) {
         return 0;

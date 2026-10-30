@@ -1,6 +1,12 @@
-/* elib_fl_median_core_f.c - Median Filter (Float) */
+/* elib_fl_median_core_f.c - Batch Median Filter (Float)
+ *
+ * Non-overlapping window: one median every `size` updates, computed
+ * on a scratch insertion sort of the user-owned buffer (the buffer
+ * is sorted IN PLACE -- its contents are destroyed at every batch
+ * boundary; they would be overwritten by the next batch anyway). */
 
-#include "elib_fl_median_core.h"
+#include "elib_fl.h"
+#include <string.h>
 
 static void median_sort_f(float *buf, uint32_t size)
 {
@@ -21,11 +27,10 @@ elib_fl_err_t elib_fl_median_init_f(elib_fl_median_ctx_f_t *ctx, float *buf, uin
         return ELIB_FL_ERR_INVALID_PARAM;
     }
 
+    memset(ctx, 0, sizeof(*ctx));
     ctx->buf = buf;
     ctx->size = size;
-    ctx->count = 0;
     ctx->bit_flags.initialized = 1;
-    ctx->bit_flags.ready = 0;
 
     return ELIB_FL_OK;
 }
@@ -52,7 +57,7 @@ float elib_fl_median_update_f(elib_fl_median_ctx_f_t *ctx, float in)
     return result;
 }
 
-uint32_t elib_fl_median_warmup_f(const elib_fl_median_ctx_f_t *ctx)
+uint32_t elib_fl_median_ready_f(const elib_fl_median_ctx_f_t *ctx)
 {
     if (ctx == NULL || !ctx->bit_flags.initialized) {
         return 0;

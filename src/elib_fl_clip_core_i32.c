@@ -1,6 +1,11 @@
-/* elib_fl_clip_core_i32.c - Amplitude Limiter (Int32) */
+/* elib_fl_clip_core_i32.c - Rate-of-Change Limiter (Int32)
+ *
+ * Rejects steps larger than the threshold (holds the last output);
+ * accepts everything else. The |in - out| difference is computed in
+ * int64, so the full int32 input range is safe. */
 
-#include "elib_fl_clip_core.h"
+#include "elib_fl.h"
+#include <string.h>
 
 elib_fl_err_t elib_fl_clip_init_i32(elib_fl_clip_ctx_i32_t *ctx, int32_t threshold)
 {
@@ -8,8 +13,8 @@ elib_fl_err_t elib_fl_clip_init_i32(elib_fl_clip_ctx_i32_t *ctx, int32_t thresho
         return ELIB_FL_ERR_INVALID_PARAM;
     }
 
+    memset(ctx, 0, sizeof(*ctx));
     ctx->threshold = threshold;
-    ctx->out = 0;
     ctx->bit_flags.initialized = 1;
 
     return ELIB_FL_OK;

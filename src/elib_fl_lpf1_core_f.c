@@ -1,6 +1,9 @@
 /* elib_fl_lpf1_core_f.c - First-Order Low-Pass Filter (Float) */
 
-#include "elib_fl_lpf1_core.h"
+#include "elib_fl.h"
+#include <string.h>
+
+#define ELIB_FL_LPF1_PI 3.14159265358979323846f
 
 elib_fl_err_t elib_fl_lpf1_init_f(elib_fl_lpf1_ctx_f_t *ctx, float alpha)
 {
@@ -8,8 +11,8 @@ elib_fl_err_t elib_fl_lpf1_init_f(elib_fl_lpf1_ctx_f_t *ctx, float alpha)
         return ELIB_FL_ERR_INVALID_PARAM;
     }
 
+    memset(ctx, 0, sizeof(*ctx));
     ctx->alpha = alpha;
-    ctx->out = 0.0f;
     ctx->bit_flags.initialized = 1;
 
     return ELIB_FL_OK;
@@ -26,8 +29,8 @@ elib_fl_err_t elib_fl_lpf1_init_tau_f(elib_fl_lpf1_ctx_f_t *ctx, float tau, floa
         return ELIB_FL_ERR_INVALID_PARAM;
     }
 
+    memset(ctx, 0, sizeof(*ctx));
     ctx->alpha = alpha;
-    ctx->out = 0.0f;
     ctx->bit_flags.initialized = 1;
 
     return ELIB_FL_OK;
@@ -39,14 +42,14 @@ elib_fl_err_t elib_fl_lpf1_init_fc_f(elib_fl_lpf1_ctx_f_t *ctx, float fc, float 
         return ELIB_FL_ERR_INVALID_PARAM;
     }
 
-    float rc = 1.0f / (2.0f * 3.14159265358979323846f * fc);
+    float rc = 1.0f / (2.0f * ELIB_FL_LPF1_PI * fc);
     float alpha = (1.0f / fs) / (rc + (1.0f / fs));
     if (alpha <= 0.0f || alpha >= 1.0f) {
         return ELIB_FL_ERR_INVALID_PARAM;
     }
 
+    memset(ctx, 0, sizeof(*ctx));
     ctx->alpha = alpha;
-    ctx->out = 0.0f;
     ctx->bit_flags.initialized = 1;
 
     return ELIB_FL_OK;
