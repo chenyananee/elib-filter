@@ -3,7 +3,7 @@
  * All expectations are hand-derived constants. Semantics:
  *   |in - out| <= threshold -> hold out   (inclusive dead zone)
  *   |in - out| >  threshold -> follow in  (one past the edge moves)
- * Mirror image of clip: small steps HELD, large steps FOLLOWED.
+ * Mirror image of slew: small steps HELD, large steps FOLLOWED.
  * The full-range probes exercise the int32/int64 diff pipelines.
  */
 #include <stdio.h>
@@ -46,7 +46,7 @@ static void test_update_f_ladder(void) {
     assert(elib_fl_deadband_update_f(&ctx, 111.0f) == 106.0f);  /* diff 5 == threshold: held */
     assert(elib_fl_deadband_update_f(&ctx, 112.0f) == 112.0f);  /* diff 6: followed */
 
-    /* huge step follows immediately (clip would hold it) */
+    /* huge step follows immediately (slew would hold it) */
     assert(elib_fl_deadband_update_f(&ctx, -1000.0f) == -1000.0f);
     assert(elib_fl_deadband_update_f(&ctx, -995.0f) == -1000.0f);   /* diff 5: held */
     assert(elib_fl_deadband_update_f(&ctx, -994.0f) == -994.0f);    /* diff 6: followed */
