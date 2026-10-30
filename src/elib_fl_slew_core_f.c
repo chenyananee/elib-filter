@@ -1,15 +1,14 @@
-/* elib_fl_clip_core_u32.c - Rate-of-Change Limiter (Uint32)
+/* elib_fl_slew_core_f.c - Slew-Rate Limiter (Float)
  *
  * Rejects steps larger than the threshold (holds the last output);
- * accepts everything else. The |in - out| difference is computed in
- * int64, so the full uint32 input range is safe. */
+ * accepts everything else. It is NOT an amplitude clamp. */
 
 #include "elib_fl.h"
 #include <string.h>
 
-elib_fl_err_t elib_fl_clip_init_u32(elib_fl_clip_ctx_u32_t *ctx, uint32_t threshold)
+elib_fl_err_t elib_fl_slew_init_f(elib_fl_slew_ctx_f_t *ctx, float threshold)
 {
-    if (ctx == NULL || threshold == 0) {
+    if (ctx == NULL || threshold <= 0.0f) {
         return ELIB_FL_ERR_INVALID_PARAM;
     }
 
@@ -20,7 +19,7 @@ elib_fl_err_t elib_fl_clip_init_u32(elib_fl_clip_ctx_u32_t *ctx, uint32_t thresh
     return ELIB_FL_OK;
 }
 
-elib_fl_err_t elib_fl_clip_set_u32(elib_fl_clip_ctx_u32_t *ctx, uint32_t value)
+elib_fl_err_t elib_fl_slew_set_f(elib_fl_slew_ctx_f_t *ctx, float value)
 {
     if (ctx == NULL || !ctx->bit_flags.initialized) {
         return ELIB_FL_ERR_NOT_INITIALIZED;
@@ -31,29 +30,29 @@ elib_fl_err_t elib_fl_clip_set_u32(elib_fl_clip_ctx_u32_t *ctx, uint32_t value)
     return ELIB_FL_OK;
 }
 
-uint32_t elib_fl_clip_update_u32(elib_fl_clip_ctx_u32_t *ctx, uint32_t in)
+float elib_fl_slew_update_f(elib_fl_slew_ctx_f_t *ctx, float in)
 {
     if (ctx == NULL || !ctx->bit_flags.initialized) {
-        return 0;
+        return 0.0f;
     }
 
-    int64_t diff = (int64_t)in - (int64_t)ctx->out;
-    if (diff < 0) {
+    float diff = in - ctx->out;
+    if (diff < 0.0f) {
         diff = -diff;
     }
 
-    if (diff <= (int64_t)ctx->threshold) {
+    if (diff <= ctx->threshold) {
         ctx->out = in;
     }
 
     return ctx->out;
 }
 
-void elib_fl_clip_reset_u32(elib_fl_clip_ctx_u32_t *ctx)
+void elib_fl_slew_reset_f(elib_fl_slew_ctx_f_t *ctx)
 {
     if (ctx == NULL || !ctx->bit_flags.initialized) {
         return;
     }
 
-    ctx->out = 0;
+    ctx->out = 0.0f;
 }

@@ -1,14 +1,15 @@
-/* elib_fl_clip_core_f.c - Rate-of-Change Limiter (Float)
+/* elib_fl_slew_core_u32.c - Slew-Rate Limiter (Uint32)
  *
  * Rejects steps larger than the threshold (holds the last output);
- * accepts everything else. It is NOT an amplitude clamp. */
+ * accepts everything else. The |in - out| difference is computed in
+ * int64, so the full uint32 input range is safe. */
 
 #include "elib_fl.h"
 #include <string.h>
 
-elib_fl_err_t elib_fl_clip_init_f(elib_fl_clip_ctx_f_t *ctx, float threshold)
+elib_fl_err_t elib_fl_slew_init_u32(elib_fl_slew_ctx_u32_t *ctx, uint32_t threshold)
 {
-    if (ctx == NULL || threshold <= 0.0f) {
+    if (ctx == NULL || threshold == 0) {
         return ELIB_FL_ERR_INVALID_PARAM;
     }
 
@@ -19,7 +20,7 @@ elib_fl_err_t elib_fl_clip_init_f(elib_fl_clip_ctx_f_t *ctx, float threshold)
     return ELIB_FL_OK;
 }
 
-elib_fl_err_t elib_fl_clip_set_f(elib_fl_clip_ctx_f_t *ctx, float value)
+elib_fl_err_t elib_fl_slew_set_u32(elib_fl_slew_ctx_u32_t *ctx, uint32_t value)
 {
     if (ctx == NULL || !ctx->bit_flags.initialized) {
         return ELIB_FL_ERR_NOT_INITIALIZED;
@@ -30,29 +31,29 @@ elib_fl_err_t elib_fl_clip_set_f(elib_fl_clip_ctx_f_t *ctx, float value)
     return ELIB_FL_OK;
 }
 
-float elib_fl_clip_update_f(elib_fl_clip_ctx_f_t *ctx, float in)
+uint32_t elib_fl_slew_update_u32(elib_fl_slew_ctx_u32_t *ctx, uint32_t in)
 {
     if (ctx == NULL || !ctx->bit_flags.initialized) {
-        return 0.0f;
+        return 0;
     }
 
-    float diff = in - ctx->out;
-    if (diff < 0.0f) {
+    int64_t diff = (int64_t)in - (int64_t)ctx->out;
+    if (diff < 0) {
         diff = -diff;
     }
 
-    if (diff <= ctx->threshold) {
+    if (diff <= (int64_t)ctx->threshold) {
         ctx->out = in;
     }
 
     return ctx->out;
 }
 
-void elib_fl_clip_reset_f(elib_fl_clip_ctx_f_t *ctx)
+void elib_fl_slew_reset_u32(elib_fl_slew_ctx_u32_t *ctx)
 {
     if (ctx == NULL || !ctx->bit_flags.initialized) {
         return;
     }
 
-    ctx->out = 0.0f;
+    ctx->out = 0;
 }

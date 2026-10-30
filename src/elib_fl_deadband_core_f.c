@@ -1,7 +1,7 @@
 /* elib_fl_deadband_core_f.c - Dead-Zone Filter (Float)
  *
  * Small changes are IGNORED (output held), large ones are followed:
- * the mirror image of clip. threshold 0 would follow every nonzero
+ * the mirror image of slew. threshold 0 would follow every nonzero
  * change (pure pass-through) and is rejected at init. */
 
 #include "elib_fl.h"

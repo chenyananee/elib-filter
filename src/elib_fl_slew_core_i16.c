@@ -1,15 +1,15 @@
-/* elib_fl_clip_core_u16.c - Rate-of-Change Limiter (Uint16)
+/* elib_fl_slew_core_i16.c - Slew-Rate Limiter (Int16)
  *
  * Rejects steps larger than the threshold (holds the last output);
- * accepts everything else. The signed |in - out| difference of two
- * uint16 values fits int32 with room to spare (|diff| <= 2^16-1). */
+ * accepts everything else. The |in - out| difference fits int32
+ * with room to spare (|diff| <= 2^16-1). */
 
 #include "elib_fl.h"
 #include <string.h>
 
-elib_fl_err_t elib_fl_clip_init_u16(elib_fl_clip_ctx_u16_t *ctx, uint16_t threshold)
+elib_fl_err_t elib_fl_slew_init_i16(elib_fl_slew_ctx_i16_t *ctx, int16_t threshold)
 {
-    if (ctx == NULL || threshold == 0) {
+    if (ctx == NULL || threshold <= 0) {
         return ELIB_FL_ERR_INVALID_PARAM;
     }
 
@@ -20,7 +20,7 @@ elib_fl_err_t elib_fl_clip_init_u16(elib_fl_clip_ctx_u16_t *ctx, uint16_t thresh
     return ELIB_FL_OK;
 }
 
-elib_fl_err_t elib_fl_clip_set_u16(elib_fl_clip_ctx_u16_t *ctx, uint16_t value)
+elib_fl_err_t elib_fl_slew_set_i16(elib_fl_slew_ctx_i16_t *ctx, int16_t value)
 {
     if (ctx == NULL || !ctx->bit_flags.initialized) {
         return ELIB_FL_ERR_NOT_INITIALIZED;
@@ -31,7 +31,7 @@ elib_fl_err_t elib_fl_clip_set_u16(elib_fl_clip_ctx_u16_t *ctx, uint16_t value)
     return ELIB_FL_OK;
 }
 
-uint16_t elib_fl_clip_update_u16(elib_fl_clip_ctx_u16_t *ctx, uint16_t in)
+int16_t elib_fl_slew_update_i16(elib_fl_slew_ctx_i16_t *ctx, int16_t in)
 {
     if (ctx == NULL || !ctx->bit_flags.initialized) {
         return 0;
@@ -49,7 +49,7 @@ uint16_t elib_fl_clip_update_u16(elib_fl_clip_ctx_u16_t *ctx, uint16_t in)
     return ctx->out;
 }
 
-void elib_fl_clip_reset_u16(elib_fl_clip_ctx_u16_t *ctx)
+void elib_fl_slew_reset_i16(elib_fl_slew_ctx_i16_t *ctx)
 {
     if (ctx == NULL || !ctx->bit_flags.initialized) {
         return;

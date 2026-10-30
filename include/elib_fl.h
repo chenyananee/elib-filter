@@ -1,14 +1,17 @@
 /* elib_fl.h - Embedded filter library, single umbrella header.
  *
- * Six independent filters, each in five numeric flavours
+ * Seven independent filters, each in five numeric flavours
  * (explicit `_f` / `_i16` / `_i32` / `_u16` / `_u32` suffixes, pure
  * C99, no macro dispatch):
  *   lpf1     first-order low-pass IIR (alpha / time-constant /
  *            cutoff-frequency setups; Qn fixed-point alpha for ints)
- *   clip     rate-of-change limiter (rejects steps beyond threshold,
- *            holds last output)
+ *   slew     slew-rate limiter (rejects steps beyond threshold,
+ *            holds last output) -- formerly named `clip` in v2
  *   deadband dead-zone filter (ignores changes within threshold --
- *            the mirror image of clip: small held, large followed)
+ *            the mirror image of slew: small held, large followed)
+ *   hyst     boundary hysteresis limiter (one decision edge with a
+ *            sticky band and a snap-through on jumps; classification
+ *            into levels stays in the application)
  *   median   non-overlapping batch median (one output every N samples)
  *   avg      non-overlapping batch mean (one output every N samples)
  *   mavg     sliding-window mean (one output every sample, O(1) update)
@@ -28,7 +31,7 @@
  *    a documented sentinel during warmup and on uninitialized ctx
  *    (use ready() to disambiguate warmup -- never read the raw 0)
  *
- * Version: 2.0.0
+ * Version: 3.0.0
  */
 #ifndef ELIB_FL_H
 #define ELIB_FL_H
@@ -39,7 +42,7 @@
 extern "C" {
 #endif
 
-#define ELIB_FL_VERSION "2.0.0"
+#define ELIB_FL_VERSION "3.0.0"
 
 /* ---- error codes (shared by all filters) ---- */
 
@@ -207,13 +210,15 @@ uint16_t elib_fl_lpf1_update_u16(elib_fl_lpf1_ctx_u16_t *ctx, uint16_t in);
 void elib_fl_lpf1_reset_u16(elib_fl_lpf1_ctx_u16_t *ctx);
 
 /* ================================================================
- * clip -- rate-of-change limiter
+ * slew -- slew-rate limiter (every output step is rate limited)
  *
  *   |x[n] - y[n-1]| <= threshold -> y[n] = x[n]
  *   otherwise                    -> y[n] = y[n-1]   (step rejected)
  *
- * Note the semantics: this rejects LARGE STEPS, it does not clamp
- * amplitudes. The name is historical.
+ * The textbook name is slew-rate limiting: each update accepts the
+ * sample only if its step against the last output stays within the
+ * threshold, otherwise the (too fast) step is rejected and the last
+ * output is held. Rejects LARGE STEPS; does not clamp amplitudes.
  * ================================================================ */
 
 typedef struct {
@@ -222,22 +227,22 @@ typedef struct {
     struct {
         uint8_t initialized : 1;
     } bit_flags;
-} elib_fl_clip_ctx_f_t;
+} elib_fl_slew_ctx_f_t;
 
 /** Initialize with a threshold, must be > 0 */
-elib_fl_err_t elib_fl_clip_init_f(elib_fl_clip_ctx_f_t *ctx, float threshold);
+elib_fl_err_t elib_fl_slew_init_f(elib_fl_slew_ctx_f_t *ctx, float threshold);
 
 /**
  * Set the current output state (initial value for the limiter)
  * @return ELIB_FL_ERR_NOT_INITIALIZED on uninitialized ctx
  */
-elib_fl_err_t elib_fl_clip_set_f(elib_fl_clip_ctx_f_t *ctx, float value);
+elib_fl_err_t elib_fl_slew_set_f(elib_fl_slew_ctx_f_t *ctx, float value);
 
 /** Process one sample; 0.0f on NULL/uninitialized ctx */
-float elib_fl_clip_update_f(elib_fl_clip_ctx_f_t *ctx, float in);
+float elib_fl_slew_update_f(elib_fl_slew_ctx_f_t *ctx, float in);
 
 /** Clear the output state (threshold kept) */
-void elib_fl_clip_reset_f(elib_fl_clip_ctx_f_t *ctx);
+void elib_fl_slew_reset_f(elib_fl_slew_ctx_f_t *ctx);
 
 typedef struct {
     int32_t out;
@@ -245,19 +250,19 @@ typedef struct {
     struct {
         uint8_t initialized : 1;
     } bit_flags;
-} elib_fl_clip_ctx_i32_t;
+} elib_fl_slew_ctx_i32_t;
 
 /** Initialize with a threshold, must be > 0 */
-elib_fl_err_t elib_fl_clip_init_i32(elib_fl_clip_ctx_i32_t *ctx, int32_t threshold);
+elib_fl_err_t elib_fl_slew_init_i32(elib_fl_slew_ctx_i32_t *ctx, int32_t threshold);
 
 /** Set the current output state; NOT_INITIALIZED on uninitialized ctx */
-elib_fl_err_t elib_fl_clip_set_i32(elib_fl_clip_ctx_i32_t *ctx, int32_t value);
+elib_fl_err_t elib_fl_slew_set_i32(elib_fl_slew_ctx_i32_t *ctx, int32_t value);
 
 /** Process one sample (int64 diff internally, full range safe); 0 on
  * NULL/uninitialized ctx */
-int32_t elib_fl_clip_update_i32(elib_fl_clip_ctx_i32_t *ctx, int32_t in);
+int32_t elib_fl_slew_update_i32(elib_fl_slew_ctx_i32_t *ctx, int32_t in);
 
-void elib_fl_clip_reset_i32(elib_fl_clip_ctx_i32_t *ctx);
+void elib_fl_slew_reset_i32(elib_fl_slew_ctx_i32_t *ctx);
 
 typedef struct {
     uint32_t out;
@@ -265,19 +270,19 @@ typedef struct {
     struct {
         uint8_t initialized : 1;
     } bit_flags;
-} elib_fl_clip_ctx_u32_t;
+} elib_fl_slew_ctx_u32_t;
 
 /** Initialize with a threshold, must be > 0 */
-elib_fl_err_t elib_fl_clip_init_u32(elib_fl_clip_ctx_u32_t *ctx, uint32_t threshold);
+elib_fl_err_t elib_fl_slew_init_u32(elib_fl_slew_ctx_u32_t *ctx, uint32_t threshold);
 
 /** Set the current output state; NOT_INITIALIZED on uninitialized ctx */
-elib_fl_err_t elib_fl_clip_set_u32(elib_fl_clip_ctx_u32_t *ctx, uint32_t value);
+elib_fl_err_t elib_fl_slew_set_u32(elib_fl_slew_ctx_u32_t *ctx, uint32_t value);
 
 /** Process one sample (int64 diff internally, full range safe); 0 on
  * NULL/uninitialized ctx */
-uint32_t elib_fl_clip_update_u32(elib_fl_clip_ctx_u32_t *ctx, uint32_t in);
+uint32_t elib_fl_slew_update_u32(elib_fl_slew_ctx_u32_t *ctx, uint32_t in);
 
-void elib_fl_clip_reset_u32(elib_fl_clip_ctx_u32_t *ctx);
+void elib_fl_slew_reset_u32(elib_fl_slew_ctx_u32_t *ctx);
 
 /* -- int16 flavour: the diff fits int32 with room to spare
  * (|diff| <= 2^16-1), so no 64-bit step is needed -- */
@@ -288,18 +293,18 @@ typedef struct {
     struct {
         uint8_t initialized : 1;
     } bit_flags;
-} elib_fl_clip_ctx_i16_t;
+} elib_fl_slew_ctx_i16_t;
 
 /** Initialize with a threshold, must be > 0 */
-elib_fl_err_t elib_fl_clip_init_i16(elib_fl_clip_ctx_i16_t *ctx, int16_t threshold);
+elib_fl_err_t elib_fl_slew_init_i16(elib_fl_slew_ctx_i16_t *ctx, int16_t threshold);
 
 /** Set the current output state; NOT_INITIALIZED on uninitialized ctx */
-elib_fl_err_t elib_fl_clip_set_i16(elib_fl_clip_ctx_i16_t *ctx, int16_t value);
+elib_fl_err_t elib_fl_slew_set_i16(elib_fl_slew_ctx_i16_t *ctx, int16_t value);
 
 /** Process one sample (int32 diff internally); 0 on NULL/uninitialized ctx */
-int16_t elib_fl_clip_update_i16(elib_fl_clip_ctx_i16_t *ctx, int16_t in);
+int16_t elib_fl_slew_update_i16(elib_fl_slew_ctx_i16_t *ctx, int16_t in);
 
-void elib_fl_clip_reset_i16(elib_fl_clip_ctx_i16_t *ctx);
+void elib_fl_slew_reset_i16(elib_fl_slew_ctx_i16_t *ctx);
 
 typedef struct {
     uint16_t out;
@@ -307,18 +312,18 @@ typedef struct {
     struct {
         uint8_t initialized : 1;
     } bit_flags;
-} elib_fl_clip_ctx_u16_t;
+} elib_fl_slew_ctx_u16_t;
 
 /** Initialize with a threshold, must be > 0 */
-elib_fl_err_t elib_fl_clip_init_u16(elib_fl_clip_ctx_u16_t *ctx, uint16_t threshold);
+elib_fl_err_t elib_fl_slew_init_u16(elib_fl_slew_ctx_u16_t *ctx, uint16_t threshold);
 
 /** Set the current output state; NOT_INITIALIZED on uninitialized ctx */
-elib_fl_err_t elib_fl_clip_set_u16(elib_fl_clip_ctx_u16_t *ctx, uint16_t value);
+elib_fl_err_t elib_fl_slew_set_u16(elib_fl_slew_ctx_u16_t *ctx, uint16_t value);
 
 /** Process one sample (int32 diff internally); 0 on NULL/uninitialized ctx */
-uint16_t elib_fl_clip_update_u16(elib_fl_clip_ctx_u16_t *ctx, uint16_t in);
+uint16_t elib_fl_slew_update_u16(elib_fl_slew_ctx_u16_t *ctx, uint16_t in);
 
-void elib_fl_clip_reset_u16(elib_fl_clip_ctx_u16_t *ctx);
+void elib_fl_slew_reset_u16(elib_fl_slew_ctx_u16_t *ctx);
 
 /* ================================================================
  * deadband -- dead-zone filter
@@ -326,7 +331,7 @@ void elib_fl_clip_reset_u16(elib_fl_clip_ctx_u16_t *ctx);
  *   |x[n] - y[n-1]| <= threshold -> y[n] = y[n-1]   (held: ignored)
  *   |x[n] - y[n-1]| >  threshold -> y[n] = x[n]     (followed)
  *
- * The mirror image of clip: small changes are IGNORED (anti-jitter,
+ * The mirror image of slew: small changes are IGNORED (anti-jitter,
  * report-by-exception, static-display anti-dither), large ones pass
  * through unchanged. threshold 0 would follow every nonzero change
  * (a pure pass-through) and is rejected at init. No window, no
@@ -438,6 +443,161 @@ elib_fl_err_t elib_fl_deadband_set_u32(elib_fl_deadband_ctx_u32_t *ctx, uint32_t
 uint32_t elib_fl_deadband_update_u32(elib_fl_deadband_ctx_u32_t *ctx, uint32_t in);
 
 void elib_fl_deadband_reset_u32(elib_fl_deadband_ctx_u32_t *ctx);
+
+/* ================================================================
+ * hyst -- boundary hysteresis limiter
+ *
+ * One decision edge with hysteresis, driven by three init-validated
+ * parameters: boundary b, hysteresis width h (> 0), snap break
+ * width S (> h). With s = in - b and out being the last returned
+ * value:
+ *
+ *   state LOW (output at/below the boundary):
+ *     s <= 0      -> return in (actual)
+ *     0 < s <= h  -> sticky clamp, return b -- UNLESS |in - out| > S:
+ *                    snap through, return in, state HIGH
+ *     s >  h      -> cross, return in, state HIGH
+ *   state HIGH (has been above the boundary once):
+ *     s > 0       -> return in (actual)
+ *     -h < s <= 0 -> hold last output -- UNLESS |in - out| > S:
+ *                    snap through, return in, state LOW
+ *     s <= -h     -> return in, state LOW
+ *
+ * Jumps up to the hysteresis envelope never break it (S > h makes
+ * sure); only genuinely fast changes snap straight through. Use one
+ * instance per decision edge (fan-on at 30 C, alarm at 40, ...);
+ * classification into levels stays in the application -- the
+ * library only returns the settled VALUE.
+ * ================================================================ */
+
+typedef struct {
+    float out;
+    float boundary;
+    float hyst;
+    float snap;
+    struct {
+        uint8_t initialized : 1;
+        uint8_t above       : 1;
+    } bit_flags;
+} elib_fl_hyst_ctx_f_t;
+
+/**
+ * Initialize a one-edge hysteresis limiter
+ * @param boundary the decision edge
+ * @param hyst     hysteresis width, must be > 0
+ * @param snap     snap-through width, must be > hyst
+ */
+elib_fl_err_t elib_fl_hyst_init_f(elib_fl_hyst_ctx_f_t *ctx, float boundary, float hyst, float snap);
+
+/**
+ * Seed the state with an initial reference value; the side (LOW /
+ * HIGH) is derived from value vs boundary
+ */
+elib_fl_err_t elib_fl_hyst_set_f(elib_fl_hyst_ctx_f_t *ctx, float value);
+
+/** Process one sample; 0.0f on NULL/uninitialized ctx */
+float elib_fl_hyst_update_f(elib_fl_hyst_ctx_f_t *ctx, float in);
+
+/** Clear the output state (out=0, back to LOW; config kept) */
+void elib_fl_hyst_reset_f(elib_fl_hyst_ctx_f_t *ctx);
+
+/* -- int16 flavour: int32 diffs, bound-provably safe -- */
+
+typedef struct {
+    int16_t out;
+    int16_t boundary;
+    int16_t hyst;
+    int16_t snap;
+    struct {
+        uint8_t initialized : 1;
+        uint8_t above       : 1;
+    } bit_flags;
+} elib_fl_hyst_ctx_i16_t;
+
+/** Initialize: hyst must be > 0, snap must be > hyst */
+elib_fl_err_t elib_fl_hyst_init_i16(elib_fl_hyst_ctx_i16_t *ctx, int16_t boundary, int16_t hyst, int16_t snap);
+
+/** Seed the state; side derived from value vs boundary */
+elib_fl_err_t elib_fl_hyst_set_i16(elib_fl_hyst_ctx_i16_t *ctx, int16_t value);
+
+/** Process one sample (int32 diff internally); 0 on NULL/uninitialized ctx */
+int16_t elib_fl_hyst_update_i16(elib_fl_hyst_ctx_i16_t *ctx, int16_t in);
+
+void elib_fl_hyst_reset_i16(elib_fl_hyst_ctx_i16_t *ctx);
+
+/* -- uint16 flavour: int32 diffs, bound-provably safe -- */
+
+typedef struct {
+    uint16_t out;
+    uint16_t boundary;
+    uint16_t hyst;
+    uint16_t snap;
+    struct {
+        uint8_t initialized : 1;
+        uint8_t above       : 1;
+    } bit_flags;
+} elib_fl_hyst_ctx_u16_t;
+
+/** Initialize: hyst must be > 0, snap must be > hyst */
+elib_fl_err_t elib_fl_hyst_init_u16(elib_fl_hyst_ctx_u16_t *ctx, uint16_t boundary, uint16_t hyst, uint16_t snap);
+
+/** Seed the state; side derived from value vs boundary */
+elib_fl_err_t elib_fl_hyst_set_u16(elib_fl_hyst_ctx_u16_t *ctx, uint16_t value);
+
+/** Process one sample (int32 diff internally); 0 on NULL/uninitialized ctx */
+uint16_t elib_fl_hyst_update_u16(elib_fl_hyst_ctx_u16_t *ctx, uint16_t in);
+
+void elib_fl_hyst_reset_u16(elib_fl_hyst_ctx_u16_t *ctx);
+
+/* -- int32 flavour: int64 diffs, full range safe -- */
+
+typedef struct {
+    int32_t out;
+    int32_t boundary;
+    int32_t hyst;
+    int32_t snap;
+    struct {
+        uint8_t initialized : 1;
+        uint8_t above       : 1;
+    } bit_flags;
+} elib_fl_hyst_ctx_i32_t;
+
+/** Initialize: hyst must be > 0, snap must be > hyst */
+elib_fl_err_t elib_fl_hyst_init_i32(elib_fl_hyst_ctx_i32_t *ctx, int32_t boundary, int32_t hyst, int32_t snap);
+
+/** Seed the state; side derived from value vs boundary */
+elib_fl_err_t elib_fl_hyst_set_i32(elib_fl_hyst_ctx_i32_t *ctx, int32_t value);
+
+/** Process one sample (int64 diff internally, full range safe); 0 on
+ * NULL/uninitialized ctx */
+int32_t elib_fl_hyst_update_i32(elib_fl_hyst_ctx_i32_t *ctx, int32_t in);
+
+void elib_fl_hyst_reset_i32(elib_fl_hyst_ctx_i32_t *ctx);
+
+/* -- uint32 flavour: int64 diffs, full range safe -- */
+
+typedef struct {
+    uint32_t out;
+    uint32_t boundary;
+    uint32_t hyst;
+    uint32_t snap;
+    struct {
+        uint8_t initialized : 1;
+        uint8_t above       : 1;
+    } bit_flags;
+} elib_fl_hyst_ctx_u32_t;
+
+/** Initialize: hyst must be > 0, snap must be > hyst */
+elib_fl_err_t elib_fl_hyst_init_u32(elib_fl_hyst_ctx_u32_t *ctx, uint32_t boundary, uint32_t hyst, uint32_t snap);
+
+/** Seed the state; side derived from value vs boundary */
+elib_fl_err_t elib_fl_hyst_set_u32(elib_fl_hyst_ctx_u32_t *ctx, uint32_t value);
+
+/** Process one sample (int64 diff internally, full range safe); 0 on
+ * NULL/uninitialized ctx */
+uint32_t elib_fl_hyst_update_u32(elib_fl_hyst_ctx_u32_t *ctx, uint32_t in);
+
+void elib_fl_hyst_reset_u32(elib_fl_hyst_ctx_u32_t *ctx);
 
 /* ================================================================
  * median -- non-overlapping batch median
